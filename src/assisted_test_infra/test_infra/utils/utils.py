@@ -236,33 +236,43 @@ def get_local_assisted_service_url(namespace, service, deploy_target):
     ip = socket.gethostbyname(socket.gethostname())
     if deploy_target == "onprem":
         assisted_hostname_or_ip = os.environ["ASSISTED_SERVICE_HOST"]
-        return f"http://{assisted_hostname_or_ip}:8090"
+        url = f"http://{assisted_hostname_or_ip}:8090"
+        log.info("URL resolve (onprem): host=%s url=%s", assisted_hostname_or_ip, url)
+        return url
     elif deploy_target == "kind":
         url = f"http://{ip}:8090"
+        log.info("URL resolve (kind): hostname=%s ip=%s url=%s", socket.gethostname(), ip, url)
         if is_assisted_service_reachable(url):
+            log.info("Health probe passed (kind) url=%s", url)
             return url
-
+        log.warning("Health probe failed (kind) url=%s; will raise", url)
         raise RuntimeError(f"The parsed url {url} to service {service} in {namespace} namespace was not reachable.]")
     elif deploy_target == "ocp":
-        return f"http://{ip}:7000"
+        url = f"http://{ip}:7000"
+        log.info("URL resolve (ocp): hostname=%s ip=%s url=%s", socket.gethostname(), ip, url)
+        return url
     else:
-        # Resolve the service ip and port
+        # Resolve the service ip and port via LB
         url, _, _ = run_command(
             f"kubectl get svc {service} -n {namespace} "
             f"-o=jsonpath='http://{{.status.loadBalancer.ingress[0].ip}}:"
-            f'{{.spec.ports[?(@.name=="{service}")].port}}\''
+            f"{{.spec.ports[?(@.name==\"{service}\")].port}}'"
         )
+        log.info("URL resolve (lb): url=%s", url)
         if is_assisted_service_reachable(url):
+            log.info("Health probe passed (lb) url=%s", url)
             return url
-
+        log.warning("Health probe failed (lb) url=%s; will raise", url)
         raise RuntimeError(f"The parsed url {url} to service {service} in {namespace} namespace was not reachable.]")
 
 
 def is_assisted_service_reachable(url):
     try:
         r = requests.get(url + "/health", timeout=10, verify=False)
+        log.info("Health probe url=%s status=%s", url, r.status_code)
         return r.status_code == 200
-    except (requests.ConnectionError, requests.ConnectTimeout, requests.RequestException):
+    except (requests.ConnectionError, requests.ConnectTimeout, requests.RequestException) as e:
+        log.warning("Health probe exception url=%s err=%s", url, e)
         return False
 
 

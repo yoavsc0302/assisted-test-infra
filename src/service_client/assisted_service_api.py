@@ -163,6 +163,10 @@ class InventoryClient(object):
 
     def wait_for_api_readiness(self, timeout: int) -> None:
         log.info("Waiting for inventory api to be ready")
+        try:
+            log.info("Readiness target url=%s", self.inventory_url)
+        except Exception:
+            pass
         waiting.wait(
             lambda: self.clusters_list() is not None,
             timeout_seconds=timeout,

@@ -2,21 +2,30 @@
 set -euo pipefail
 source scripts/utils.sh
 
+# Timestamped xtrace for clearer sequencing
+export PS4='[$(date -u "+%H:%M:%S")] ${BASH_SOURCE##*/}:${LINENO}: '
 set -o xtrace
 
 export SERVICE_NAME=assisted-service
 
+# Log initial env snapshot
+print_log "ENV: DEPLOY_TARGET=${DEPLOY_TARGET:-unset} OPENSHIFT_VERSION=${OPENSHIFT_VERSION:-unset} OPENSHIFT_INSTALL_RELEASE_IMAGE=${OPENSHIFT_INSTALL_RELEASE_IMAGE:-unset} ASSISTED_SERVICE_HOST=${ASSISTED_SERVICE_HOST:-unset} NAMESPACE_INDEX=${NAMESPACE_INDEX:-unset}"
+
 case ${DEPLOY_TARGET} in
     kind)
+        print_log "branch: case(kind)"
         export SERVICE_URL=${SERVICE_URL:-$(get_main_ip)}
         export SERVICE_PORT=8090
         export IMAGE_SERVICE_PORT=8080
         export EXTERNAL_PORT=false
+        print_log "kind: SERVICE_URL=${SERVICE_URL} SERVICE_PORT=${SERVICE_PORT} IMAGE_SERVICE_PORT=${IMAGE_SERVICE_PORT}"
         ;;
     *)
+        print_log "branch: case(*)"
         export SERVICE_URL=${SERVICE_URL:-$(get_main_ip)}
         export SERVICE_PORT=$(( 6000 + $NAMESPACE_INDEX ))
         export IMAGE_SERVICE_PORT=$(( 6016 + $NAMESPACE_INDEX ))
+        print_log "default: SERVICE_URL=${SERVICE_URL} SERVICE_PORT=${SERVICE_PORT} IMAGE_SERVICE_PORT=${IMAGE_SERVICE_PORT}"
         ;;
 esac
 
@@ -96,6 +105,7 @@ fi
 unset OPENSHIFT_VERSION
 
 if [ "${DEPLOY_TARGET}" == "onprem" ]; then
+    print_log "enter: onprem branch"
     # Override assisted-service and assisted-image-service
     if [ -n "${SERVICE:-}" ]; then
         sed -i "s|quay.io/edge-infrastructure/assisted-service:latest|${SERVICE}|g" assisted-service/deploy/podman/pod.yml
@@ -125,8 +135,11 @@ if [ "${DEPLOY_TARGET}" == "onprem" ]; then
     HW_VALIDATOR_REQUIREMENTS_LOW_DISK=$(echo $validator_requirements | jq '(.[].worker.disk_size_gb, .[].master.disk_size_gb, .[].sno.disk_size_gb) |= 20' | tr -d "\n\t ")
     sed -i "s|HW_VALIDATOR_REQUIREMENTS:.*|HW_VALIDATOR_REQUIREMENTS: '${HW_VALIDATOR_REQUIREMENTS_LOW_DISK}'|" assisted-service/deploy/podman/configmap.yml
 
+    print_log "onprem: starting deploy-onprem"
     ROOT_DIR=$(realpath assisted-service/) make -C assisted-service/ deploy-onprem
+    print_log "onprem: finished deploy-onprem"
 elif [ "${DEPLOY_TARGET}" == "operator" ]; then
+    print_log "enter: operator branch"
     # This nginx would listen to http on OCP_SERVICE_PORT and it would proxy_pass it to the actual route.
     export SERVICE_BASE_URL=http://${SERVICE_URL}:${OCP_SERVICE_PORT}
     add_firewalld_port ${OCP_SERVICE_PORT}
@@ -165,6 +178,7 @@ EOF
     sed -i "s/${ROUTE}/${PATCH_ROUTE}/g" "${HOME}/.test-infra/etc/nginx/conf.d/http_localhost.conf"
     sleep 60
 else
+    print_log "enter: generic branch"
     print_log "Updating assisted_service params"
 
     if [[ "${PLATFORM}" == "none"  || "${PLATFORM}" == "external" || "${LOAD_BALANCER_TYPE}" == "user-managed" ]]; then

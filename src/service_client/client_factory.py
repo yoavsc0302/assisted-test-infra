@@ -1,4 +1,6 @@
 import functools
+import os
+import socket
 from typing import Optional
 
 from assisted_service_client import ApiClient
@@ -24,6 +26,17 @@ class ClientFactory:
         timeout: Optional[int] = consts.WAIT_FOR_BM_API,
     ) -> InventoryClient:
         log.info("Creating assisted-service client for url: %s", url)
+        # Diagnostic snapshot to aid flake investigations
+        try:
+            log.info(
+                "Env snapshot: DEPLOY_TARGET=%s ASSISTED_SERVICE_HOST=%s hostname=%s host_ip=%s",
+                os.getenv("DEPLOY_TARGET"),
+                os.getenv("ASSISTED_SERVICE_HOST"),
+                socket.gethostname(),
+                socket.gethostbyname(socket.gethostname()),
+            )
+        except Exception as e:
+            log.warning("Env snapshot failed: %s", e)
         c = InventoryClient(
             inventory_url=url,
             offline_token=offline_token,
