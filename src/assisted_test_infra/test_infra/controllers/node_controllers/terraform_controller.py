@@ -301,11 +301,47 @@ class TerraformController(LibvirtController):
 
         For dual-stack clusters, returns both IPv4 and IPv6 VIPs, ordered by PRIMARY_STACK.
 
-        This method is not applicable for SNO clusters, where access IPs should be the node's IP.
+        For SNO clusters, returns the single node IP for both API and ingress VIPs.
         """
         api_vips = []
         ingress_vips = []
         primary_stack = self._get_primary_stack()
+
+        # Detect SNO cluster (following established codebase pattern: master_count == 1)
+        is_sno = self._params.master_count == 1
+
+        if is_sno:
+            # For SNO, both API and Ingress VIPs must be the single node IP
+            log.info(f"SNO cluster detected (master_count={self._params.master_count}). Setting VIPs to single node IP.")
+
+            # For dual-stack SNO, we need both IPv4 and IPv6 addresses
+            if self.is_ipv4 and self.is_ipv6:
+                ipv4_network = ip_network(self._config.net_asset.machine_cidr)
+                ipv6_network = ip_network(self._config.net_asset.machine_cidr6)
+
+                # Single node IPs: network_address + 10
+                ipv4_single_ip = str(ip_address(ipv4_network.network_address) + 10)
+                ipv6_single_ip = str(ip_address(ipv6_network.network_address) + 10)
+
+                # Order based on PRIMARY_STACK
+                if primary_stack == "ipv6":
+                    # IPv6-primary: IPv6 first, then IPv4
+                    api_vips = [{"ip": ipv6_single_ip}, {"ip": ipv4_single_ip}]
+                    ingress_vips = [{"ip": ipv6_single_ip}, {"ip": ipv4_single_ip}]
+                else:
+                    # IPv4-primary: IPv4 first, then IPv6
+                    api_vips = [{"ip": ipv4_single_ip}, {"ip": ipv6_single_ip}]
+                    ingress_vips = [{"ip": ipv4_single_ip}, {"ip": ipv6_single_ip}]
+            else:
+                # Single-stack SNO: use the primary network's single node IP
+                network_subnet_starting_ip = ip_address(ip_network(self.get_primary_machine_cidr()).network_address)
+                single_node_ip = str(network_subnet_starting_ip + 10)
+
+                api_vips = [{"ip": single_node_ip}]
+                ingress_vips = [{"ip": single_node_ip}]
+
+            log.info(f"SNO VIPs set: api_vips={api_vips}, ingress_vips={ingress_vips}")
+            return {"api_vips": api_vips, "ingress_vips": ingress_vips}
 
         # For dual-stack, get VIPs from both networks
         if self.is_ipv4 and self.is_ipv6:
