@@ -375,7 +375,7 @@ class LibvirtController(NodeController, ABC):
         Create network and Interface. New interface will be attached to a given node.
         """
         network = self.create_network(network_xml)
-        interface_mac = self.add_interface(node_name, network.bridgeName(), target_interface)
+        interface_mac = self.add_interface(node_name, network.name(), target_interface)
         return network, interface_mac
 
     def create_network(self, network_xml):
