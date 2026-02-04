@@ -239,6 +239,15 @@ class TerraformController(LibvirtController):
         tfvars.update(self._params)
         tfvars.update(self._secondary_tfvars())
 
+        # For SNO (single master), set single_node_ip and VIPs to master-0's IP for correct DNS entries.
+        # The network DNS needs to point to the node IP, not VIPs, since SNO doesn't use VIPs.
+        # This must be done AFTER tfvars.update(self._params) to avoid being overwritten.
+        if tfvars["master_count"] == 1:
+            tfvars["single_node_ip"] = master_starting_ip
+            tfvars["api_vips"] = [master_starting_ip]
+            tfvars["ingress_vips"] = [master_starting_ip]
+            log.info("SNO detected: Setting single_node_ip=%s and VIPs for DNS configuration", master_starting_ip)
+
         with open(os.path.join(self.tf_folder, consts.TFVARS_JSON_NAME), "w") as _file:
             json.dump(tfvars, _file)
 
