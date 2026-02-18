@@ -44,6 +44,11 @@ class OciState(Enum):
     CANCELED = "CANCELED"
 
 
+class OciCapacityError(Exception):
+    """Raised when OCI reports insufficient host capacity for the requested shape."""
+    pass
+
+
 class CleanupResource:
     """Store resource to be destroyed / deleted.
 
@@ -338,8 +343,11 @@ class OciApiController(NodeController):
                 },
             )
             log.info(f"Job run ended with {job.data.lifecycle_state} state")
-            log.info(self._resource_manager_client.get_job_logs_content(job.data.id).data)
+            job_logs = self._resource_manager_client.get_job_logs_content(job.data.id).data
+            log.info(job_logs)
             if job.data.lifecycle_state == OciState.FAILED.value:
+                if "Out of host capacity" in job_logs:
+                    raise OciCapacityError(f"Out of host capacity in region {self._config.oci_region}")
                 raise RuntimeError(f"Job run ended with {job.data.lifecycle_state}")
         except Exception as e:
             log.info(f"Exception raised during apply_job_from_stack {e}: destroying")
@@ -524,8 +532,9 @@ class OciApiController(NodeController):
     def setup_time(self) -> str:
         pass
 
-    def prepare_nodes(self) -> None:
-        log.info("OCI prepare all nodes")
+    def _prepare_nodes_in_region(self) -> None:
+        """Create all OCI resources and run terraform apply in the current region."""
+        log.info(f"OCI prepare all nodes in region {self._config.oci_region}")
         bucket_name = f"bucket-{self._entity_config.cluster_id}"
         namespace = self._create_bucket(bucket_name)
         self._upload_file_to_bucket(self._entity_config.iso_download_path, namespace, bucket_name)
@@ -553,6 +562,23 @@ class OciApiController(NodeController):
         )
         terraform_output = self._apply_job_from_stack(stack_id, f"apply-job-{self._entity_config.cluster_id}")
         self.cloud_provider = terraform_output
+
+    def prepare_nodes(self) -> None:
+        fallback_regions = self._config.oci_fallback_regions or []
+        regions_to_try = [self._config.oci_region] + fallback_regions
+
+        for region in regions_to_try:
+            self._config.oci_region = region
+            self._initialize_oci_clients()
+            try:
+                self._prepare_nodes_in_region()
+                return
+            except OciCapacityError:
+                log.warning(f"Capacity error in region {region}")
+                self.destroy_all_nodes()
+                self._cleanup_resources.clear()
+
+        raise OciCapacityError(f"All regions exhausted: {regions_to_try}")
 
     def is_active(self, node_name) -> bool:
         pass

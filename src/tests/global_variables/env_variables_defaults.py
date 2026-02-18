@@ -236,6 +236,9 @@ class _EnvVariables(DataPool, ABC):
         ["OCI_EXTRA_LOAD_BALANCER_NSG_IDS"], default=[], loader=lambda oicd: re.split(r"\s|,", oicd)
     )
     oci_boot_volume_type: EnvVar = EnvVar(["OCI_BOOT_VOLUME_TYPE"])
+    oci_fallback_regions: EnvVar = EnvVar(
+        ["OCI_FALLBACK_REGIONS"], default=["us-phoenix-1"], loader=lambda val: [r.strip() for r in val.split(",") if r.strip()]
+    )
     is_disconnected: EnvVar = EnvVar(["DISCONNECTED"], loader=lambda x: bool(strtobool(x)))
     registry_ca_path: EnvVar = EnvVar(["REGISTRY_CA_PATH"], loader=Path)
     external_platform_name = EnvVar(["EXTERNAL_PLATFORM_NAME"], default=env_defaults.DEFAULT_EXTERNAL_PLATFORM_NAME)
