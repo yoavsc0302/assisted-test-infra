@@ -178,6 +178,7 @@ class Cluster(BaseCluster):
             pull_secret=self._config.pull_secret,
             base_dns_domain=self._config.base_dns_domain,
             additional_ntp_source=self._config.additional_ntp_source,
+            ntp_sources=self._config.ntp_sources,
             user_managed_networking=self._config.user_managed_networking,
             control_plane_count=self._config.control_plane_count,
             high_availability_mode=self._config.high_availability_mode,

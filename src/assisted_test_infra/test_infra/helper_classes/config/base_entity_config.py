@@ -14,6 +14,7 @@ class BaseEntityConfig(BaseConfig, ABC):
     ssh_public_key: str = None
     openshift_version: str = None
     additional_ntp_source: str = None
+    ntp_sources: str = None
     user_managed_networking: bool = None
     control_plane_count: str = None
     high_availability_mode: str = None

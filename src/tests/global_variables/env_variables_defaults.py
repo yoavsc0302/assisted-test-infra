@@ -137,9 +137,8 @@ class _EnvVariables(DataPool, ABC):
     is_ipv4: EnvVar = EnvVar(["IPv4"], loader=lambda x: bool(strtobool(x)), default=env_defaults.DEFAULT_IS_IPV4)
     is_ipv6: EnvVar = EnvVar(["IPv6"], loader=lambda x: bool(strtobool(x)), default=env_defaults.DEFAULT_IS_IPV6)
     cluster_id: EnvVar = EnvVar(["CLUSTER_ID"])
-    additional_ntp_source: EnvVar = EnvVar(
-        ["ADDITIONAL_NTP_SOURCE"], default=env_defaults.DEFAULT_ADDITIONAL_NTP_SOURCE
-    )
+    additional_ntp_source: EnvVar = EnvVar(["ADDITIONAL_NTP_SOURCE"])
+    ntp_sources: EnvVar = EnvVar(["NTP_SOURCES"])
     network_name: EnvVar = EnvVar(["NETWORK_NAME"], default=env_defaults.DEFAULT_NETWORK_NAME)
     bootstrap_in_place: EnvVar = EnvVar(
         ["BOOTSTRAP_IN_PLACE"], loader=lambda x: bool(strtobool(x)), default=env_defaults.DEFAULT_BOOTSTRAP_IN_PLACE
